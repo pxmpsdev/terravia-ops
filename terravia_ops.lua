@@ -29,32 +29,23 @@ if sf then
  local saved = tonumber(sf:read('*a'))
  sf:close()
  if saved then
-  gg.searchNumber('h 66 1f 00 00 67 1f 00 00 68 1f 00 00 ad 11 00 00 69 1f 00 00 6a 1f 00 00 6b 1f 00 00 6c 1f 00 00 6d 1f 00 00 6e 1f 00 00 6f 1f 00 00 70 1f 00 00 71 1f 00 00 72 1f 00 00 73 1f 00 00 9c 18 00 00 74 1f 00 00', 0x1)
-  gg.getResults(8)
-  local found = false
-  local res = gg.getResults(8)
-  for _, r in ipairs(res) do
-   if r.address == saved + 0x10 then found = true end
+  -- verify: fixed slot at ini+0x60 must still hold 0x7800001f (never written)
+  local v = gg.getValues({{address = saved + 0x60, flags = 0x4}})[1]
+  if v and v.value == 0x7800001f then
+   ini = saved
   end
-  gg.clearResults()
-  if found then ini = saved end
  end
 end
 if ini == nil then
-gg.searchNumber('h 00 00 00 a6 11 00 00 a7 11 00 00 a8 11 00 00 a9 11 00 00 66 1f 00 00 67 1f 00 00 68 1f 00 00 ad 11 00 00 69 1f 00 00 6a 1f 00 00 6b 1f 00 00 6c 1f 00 00 6d 1f 00 00 6e 1f 00 00 6f 1f 00 00 70 1f 00 00 71 1f 00 00 72 1f 00 00 73 1f 00 00 9c 18 00 00 74 1f 00 00 75 1f 00 00 76 1f 00 00 77 1f 00 00 78 1f 00 00 79 1f 00 00 75 1b 00 00 c6 1b 00 00 06 1c 00 00 9b 1d 00 00 4d 1d 00 00 43 20 00 00 44 20 00 00 ba 20 00 00 16 21 00 00 bf 21 00 00 9e 22 00 00 19 23 00 00 ed 24 00 00 7a', 0x1)
+-- Tolerant signature: only the fixed, never-written bytes carry real values.
+-- All skin ID WORD slots (which change when skins are applied) are wildcards,
+-- so the table is found even after skins were already modified.
+gg.searchNumber('h ?? ?? 00 a6 ?? ?? 00 a7 ?? ?? 00 a8 ?? ?? 00 a9 ?? ?? 00 66 ?? ?? 00 67 ?? ?? 00 68 ?? ?? 00 ad ?? ?? 00 69 ?? ?? 00 6a ?? ?? 00 6b ?? ?? 00 6c ?? ?? 00 6d ?? ?? 00 6e ?? ?? 00 6f ?? ?? 00 70 1f 00 00 71 ?? ?? 00 72 ?? ?? 00 73 1f 00 00 9c ?? ?? 00 74 ?? ?? 00 75 ?? ?? 00 76 ?? ?? 00 77 1f 00 00 78 ?? ?? 00 79 1f 00 00 75 1b 00 00 c6 1b 00 00 06 1c 00 00 9b 1d 00 00 4d 1d 00 00 43 ?? ?? 00 44 ?? ?? 00 ba 20 00 00 16 21 00 00 bf 21 00 00 9e ?? ?? 00 19 ?? ?? 00 ed 24 00 00 7a', 0x1)
 gg.getResults(160)
-gg.refineNumber('h 67 1f 00 00', 0x1)
-if gg.getResultsCount() < 4 then
--- skin IDs already modified, try a tolerant search
-gg.clearResults()
-gg.searchNumber('h 00 00 00 ?? ?? 00 00 ?? ?? 00 00 ?? ?? 00 00 66 1f 00 00 67 1f 00 00 68 1f 00 00 ad 11 00 00 69 1f 00 00 6a 1f 00 00 6b 1f 00 00 6c 1f 00 00 6d 1f 00 00 6e 1f 00 00 6f 1f 00 00 70 1f 00 00 71 1f 00 00 72 1f 00 00 73 1f 00 00 9c 18 00 00 74 1f 00 00 75 1f 00 00 76 1f 00 00 77 1f 00 00 78 1f 00 00 79 1f 00 00 75 1b 00 00 c6 1b 00 00 06 1c 00 00 9b 1d 00 00 4d 1d 00 00 43 20 00 00 44 20 00 00 ba 20 00 00 16 21 00 00 bf 21 00 00 9e 22 00 00 19 23 00 00 ed 24 00 00 7a', 0x1)
-gg.getResults(160)
-gg.refineNumber('h 67 1f 00 00', 0x1)
-if gg.getResultsCount() < 4 then
+if gg.getResultsCount() < 1 then
 gg.alert('Failed to inject global IDs. Maybe you need to restart game?', 'OK')
 gg.setVisible(true)
 return os.exit('0xe4') end
-end
 ini = gg.getResults(1)[1]['address']
 gg.clearResults()
 -- remember the address so a script restart works without the signature
