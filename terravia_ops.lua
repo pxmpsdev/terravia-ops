@@ -352,6 +352,7 @@ if skins == 55 then
 end
  end
 
+
 function CreateCFG(x)
 table = gg.prompt(
 (function() return {
@@ -434,6 +435,7 @@ gg.toast(' (✅) ')
 end
 end
 
+
 function LoadCFG(x)
 table = gg.prompt(
 (function() return {
@@ -483,7 +485,8 @@ m_AGENT = gg.choice({
 [19213] = '🔴 MAYHEM NOMAD',
 },nil,
 'AGENT Menu')
-
+gg.toast('Not added.')
+-- /
 end
 
 function AK47(x)
@@ -645,7 +648,15 @@ m_AK47 = gg.choice({
 [15463] = '🟠 ALERT',
 },nil,
 'AK47 Menu')
-
+if (not m_AK47) then else
+gg.setValues({[1] = {
+['address'] = ini - 0x14,
+['flags'] = 0x2,
+['value'] = m_AK47,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function AR15(x)
@@ -705,7 +716,15 @@ m_AR15 = gg.choice({
 [14866] = '🟠 SWISH',
 },nil,
 'AR15 Menu')
-
+if (not m_AR15) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x80,
+['flags'] = 0x2,
+['value'] = m_AR15,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function AUG(x)
@@ -826,7 +845,15 @@ m_AUG = gg.choice({
 [10943] = '🟣 WEAVED SPLENDOR',
 },nil,
 'AUG Menu')
-
+if (not m_AUG) then else
+gg.setValues({[1] = {
+['address'] = ini - 0x10,
+['flags'] = 0x2,
+['value'] = m_AUG,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function BALISONG(x)
@@ -864,7 +891,15 @@ m_BALISONG = gg.choice({
 [19219] = '🔴 CYCLONE',
 },nil,
 'BALISONG Menu')
-
+if (not m_BALISONG) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x0,
+['flags'] = 0x2,
+['value'] = m_BALISONG,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function C4(x)
@@ -872,7 +907,8 @@ m_C4 = gg.choice({
 [8053] = '⚪ DEFAULT',
 },nil,
 'C4 Menu')
-
+gg.toast('Not added.')
+-- /
 end
 
 function CASE(x)
@@ -949,7 +985,8 @@ m_CASE = gg.choice({
 [73] = '🔴 VERGE',
 },nil,
 'CASE Menu')
-
+gg.toast('Not added.')
+-- /
 end
 
 function CURRENCY(x)
@@ -963,7 +1000,8 @@ m_CURRENCY = gg.choice({
 [7] = '⚪ SHARDS',
 },nil,
 'CURRENCY Menu')
-
+gg.toast('Not added.')
+-- /
 end
 
 function DEAGLE(x)
@@ -1075,7 +1113,15 @@ m_DEAGLE = gg.choice({
 [14860] = '🟠 EJECT',
 },nil,
 'DEAGLE Menu')
-
+if (not m_DEAGLE) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x64,
+['flags'] = 0x2,
+['value'] = m_DEAGLE,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function DRAGONMOURN(x)
@@ -1088,7 +1134,15 @@ m_DRAGONMOURN = gg.choice({
 [14506] = '⚪ DEFAULT',
 },nil,
 'DRAGONMOURN Menu')
-
+if (not m_DRAGONMOURN) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x0,
+['flags'] = 0x2,
+['value'] = m_DRAGONMOURN,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function DUALMTX(x)
@@ -1198,7 +1252,15 @@ m_DUALMTX = gg.choice({
 [10950] = '🟣 REALM WARPER',
 },nil,
 'DUALMTX Menu')
-
+if (not m_DUALMTX) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x18,
+['flags'] = 0x2,
+['value'] = m_DUALMTX,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function EMBLEM(x)
@@ -1707,7 +1769,8 @@ m_EMBLEM = gg.choice({
 [515] = '⚪ ODYSSEY',
 },nil,
 'EMBLEM Menu')
-
+gg.toast('Not added.')
+-- /
 end
 
 function EMPTYHANDS(x)
@@ -1716,7 +1779,8 @@ m_EMPTYHANDS = gg.choice({
 [10083] = '⚪ DEFAULT',
 },nil,
 'EMPTYHANDS Menu')
-
+gg.toast('Not added.')
+-- /
 end
 
 function FIREBOMB(x)
@@ -1725,7 +1789,8 @@ m_FIREBOMB = gg.choice({
 [8470] = '⚪ DEFAULT',
 },nil,
 'FIREBOMB Menu')
-
+gg.toast('Not added.')
+-- /
 end
 
 function FLASHBANG(x)
@@ -1846,7 +1911,15 @@ m_FLASHBANG = gg.choice({
 [10914] = '🟡 SEASON 18 BULLET STORM',
 },nil,
 'FLASHBANG Menu')
-
+if (not m_FLASHBANG) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x44,
+['flags'] = 0x2,
+['value'] = m_FLASHBANG,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function FP6(x)
@@ -1970,7 +2043,15 @@ m_FP6 = gg.choice({
 [10962] = '🔵 GENESIS RED',
 },nil,
 'FP6 Menu')
-
+if (not m_FP6) then else
+gg.setValues({[1] = {
+['address'] = ini - 0xc,
+['flags'] = 0x2,
+['value'] = m_FP6,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function FRAG(x)
@@ -2094,7 +2175,15 @@ m_FRAG = gg.choice({
 [10915] = '🟡 SEASON 18 BULLET STORM',
 },nil,
 'FRAG Menu')
-
+if (not m_FRAG) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x48,
+['flags'] = 0x2,
+['value'] = m_FRAG,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function GLOVESKIN(x)
@@ -2244,7 +2333,15 @@ m_GLOVESKIN = gg.choice({
 [32244] = '🔴 SIGNATURE: IMPERIAL EMBER',
 },nil,
 'GLOVESKIN Menu')
-
+if (not m_GLOVESKIN) then else
+if m_GLOVESKIN == 6714 then
+m_GLOVESKIN = tostring(m_GLOVESKIN) .. ';7093' end
+gg.loadResults(glvs)
+gg.getResults(2)
+gg.editAll(m_GLOVESKIN, 0x4)
+gg.clearResults()
+gg.toast(' (✅) ')
+end
 end
 
 function GSR1911(x)
@@ -2364,7 +2461,15 @@ m_GSR1911 = gg.choice({
 [15784] = '🟠 BULLET TIME',
 },nil,
 'GSR1911 Menu')
-
+if (not m_GSR1911) then else
+gg.setValues({[1] = {
+['address'] = ini - 0x8,
+['flags'] = 0x2,
+['value'] = m_GSR1911,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function HK417(x)
@@ -2489,7 +2594,15 @@ m_HK417 = gg.choice({
 [15782] = '🟠 HALT',
 },nil,
 'HK417 Menu')
-
+if (not m_HK417) then else
+gg.setValues({[1] = {
+['address'] = ini - 0x4,
+['flags'] = 0x2,
+['value'] = m_HK417,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function INCENDIARY(x)
@@ -2515,7 +2628,15 @@ m_INCENDIARY = gg.choice({
 [10920] = '🟡 SEASON 18 BULLET STORM',
 },nil,
 'INCENDIARY Menu')
-
+if (not m_INCENDIARY) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x94,
+['flags'] = 0x2,
+['value'] = m_INCENDIARY,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function JAMBIYA(x)
@@ -2534,7 +2655,15 @@ m_JAMBIYA = gg.choice({
 [31752] = '🔴 SLICER',
 },nil,
 'JAMBIYA Menu')
-
+if (not m_JAMBIYA) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x0,
+['flags'] = 0x2,
+['value'] = m_JAMBIYA,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function KARAMBIT(x)
@@ -2568,7 +2697,15 @@ m_KARAMBIT = gg.choice({
 [19143] = '🔴 LOOP',
 },nil,
 'KARAMBIT Menu')
-
+if (not m_KARAMBIT) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x0,
+['flags'] = 0x2,
+['value'] = m_KARAMBIT,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function KEY(x)
@@ -2576,7 +2713,8 @@ m_KEY = gg.choice({
 [18909] = '⚪ SPORTS',
 },nil,
 'KEY Menu')
-
+gg.toast('Not added.')
+-- /
 end
 
 function KNIFE(x)
@@ -2607,7 +2745,15 @@ m_KNIFE = gg.choice({
 [14827] = '🔴 KNIFE FLIP',
 },nil,
 'KNIFE Menu')
-
+if (not m_KNIFE) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x0,
+['flags'] = 0x2,
+['value'] = m_KNIFE,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function KSG(x)
@@ -2665,7 +2811,15 @@ m_KSG = gg.choice({
 [15473] = '🟠 GUN FLIP',
 },nil,
 'KSG Menu')
-
+if (not m_KSG) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x98,
+['flags'] = 0x2,
+['value'] = m_KSG,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function KUKRI(x)
@@ -2700,7 +2854,15 @@ m_KUKRI = gg.choice({
 [31759] = '🔴 PROPELLER',
 },nil,
 'KUKRI Menu')
-
+if (not m_KUKRI) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x0,
+['flags'] = 0x2,
+['value'] = m_KUKRI,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function M14(x)
@@ -2822,7 +2984,15 @@ m_M14 = gg.choice({
 [10902] = '🟠 SCALED ARMOR',
 },nil,
 'M14 Menu')
-
+if (not m_M14) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x8,
+['flags'] = 0x2,
+['value'] = m_M14,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function M1887(x)
@@ -2921,7 +3091,15 @@ m_M1887 = gg.choice({
 [15783] = '🟠 GUN TWIRL',
 },nil,
 'M1887 Menu')
-
+if (not m_M1887) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x58,
+['flags'] = 0x2,
+['value'] = m_M1887,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function M4(x)
@@ -3063,7 +3241,15 @@ m_M4 = gg.choice({
 [15468] = '🟠 BO STAFF',
 },nil,
 'M4 Menu')
-
+if (not m_M4) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x4,
+['flags'] = 0x2,
+['value'] = m_M4,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function MANIAGO(x)
@@ -3081,7 +3267,15 @@ m_MANIAGO = gg.choice({
 [19234] = '⚪ DEFAULT',
 },nil,
 'MANIAGO Menu')
-
+if (not m_MANIAGO) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x0,
+['flags'] = 0x2,
+['value'] = m_MANIAGO,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function MEATCLEAVER(x)
@@ -3094,7 +3288,15 @@ m_MEATCLEAVER = gg.choice({
 [10145] = '🔴 BIG APPETITE',
 },nil,
 'MEATCLEAVER Menu')
-
+if (not m_MEATCLEAVER) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x0,
+['flags'] = 0x2,
+['value'] = m_MEATCLEAVER,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function MP5(x)
@@ -3212,7 +3414,15 @@ m_MP5 = gg.choice({
 [15780] = '🟠 PRICEY',
 },nil,
 'MP5 Menu')
-
+if (not m_MP5) then else
+gg.setValues({[1] = {
+['address'] = ini + 0xc,
+['flags'] = 0x2,
+['value'] = m_MP5,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function MP7(x)
@@ -3321,7 +3531,15 @@ m_MP7 = gg.choice({
 [15144] = '🟠 COME AT ME',
 },nil,
 'MP7 Menu')
-
+if (not m_MP7) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x10,
+['flags'] = 0x2,
+['value'] = m_MP7,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function MPX(x)
@@ -3423,7 +3641,15 @@ m_MPX = gg.choice({
 [10947] = '🟠 GLEAMING SILVER',
 },nil,
 'MPX Menu')
-
+if (not m_MPX) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x54,
+['flags'] = 0x2,
+['value'] = m_MPX,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function MR96(x)
@@ -3533,7 +3759,15 @@ m_MR96 = gg.choice({
 [15465] = '🟠 SHOW-OFF',
 },nil,
 'MR96 Menu')
-
+if (not m_MR96) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x14,
+['flags'] = 0x2,
+['value'] = m_MR96,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function P250(x)
@@ -3652,7 +3886,15 @@ m_P250 = gg.choice({
 [11000] = '🟢 WELDED',
 },nil,
 'P250 Menu')
-
+if (not m_P250) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x20,
+['flags'] = 0x2,
+['value'] = m_P250,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function P90(x)
@@ -3769,7 +4011,15 @@ m_P90 = gg.choice({
 [15466] = '🟠 FUMBLE',
 },nil,
 'P90 Menu')
-
+if (not m_P90) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x1c,
+['flags'] = 0x2,
+['value'] = m_P90,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function PIPEWRENCH(x)
@@ -3788,7 +4038,15 @@ m_PIPEWRENCH = gg.choice({
 [10386] = '🔴 OFF ROAD',
 },nil,
 'PIPEWRENCH Menu')
-
+if (not m_PIPEWRENCH) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x0,
+['flags'] = 0x2,
+['value'] = m_PIPEWRENCH,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function PRACTICE(x)
@@ -3796,7 +4054,8 @@ m_PRACTICE = gg.choice({
 [8056] = '⚪ DEFAULT',
 },nil,
 'PRACTICE Menu')
-
+gg.toast('Not added.')
+-- /
 end
 
 function PUSHDAGGERS(x)
@@ -3813,7 +4072,15 @@ m_PUSHDAGGERS = gg.choice({
 [18998] = '⚪ DEFAULT',
 },nil,
 'PUSHDAGGERS Menu')
-
+if (not m_PUSHDAGGERS) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x0,
+['flags'] = 0x2,
+['value'] = m_PUSHDAGGERS,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function REMIX(x)
@@ -3856,7 +4123,15 @@ m_REMIX = gg.choice({
 [10953] = '🔴 TIDE WAVE',
 },nil,
 'REMIX Menu')
-
+if (not m_REMIX) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x0,
+['flags'] = 0x2,
+['value'] = m_REMIX,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function SA58(x)
@@ -3963,7 +4238,15 @@ m_SA58 = gg.choice({
 [10991] = '🔵 GENESIS RED',
 },nil,
 'SA58 Menu')
-
+if (not m_SA58) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x24,
+['flags'] = 0x2,
+['value'] = m_SA58,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function SCARH(x)
@@ -4024,7 +4307,15 @@ m_SCARH = gg.choice({
 [18540] = '🟠 SWISH',
 },nil,
 'SCARH Menu')
-
+if (not m_SCARH) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x84,
+['flags'] = 0x2,
+['value'] = m_SCARH,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function SG551(x)
@@ -4145,7 +4436,15 @@ m_SG551 = gg.choice({
 [15145] = '🟠 GUN FLIP',
 },nil,
 'SG551 Menu')
-
+if (not m_SG551) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x28,
+['flags'] = 0x2,
+['value'] = m_SG551,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function SHORTSWORD(x)
@@ -4160,7 +4459,15 @@ m_SHORTSWORD = gg.choice({
 [10552] = '🔴 DIABOLIC DIVINE',
 },nil,
 'SHORTSWORD Menu')
-
+if (not m_SHORTSWORD) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x0,
+['flags'] = 0x2,
+['value'] = m_SHORTSWORD,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function SMOKE(x)
@@ -4284,7 +4591,15 @@ m_SMOKE = gg.choice({
 [10916] = '🟡 SEASON 18 BULLET STORM',
 },nil,
 'SMOKE Menu')
-
+if (not m_SMOKE) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x50,
+['flags'] = 0x2,
+['value'] = m_SMOKE,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function SPHERE(x)
@@ -4294,7 +4609,8 @@ m_SPHERE = gg.choice({
 [31951] = '⚪ DEFAULT',
 },nil,
 'SPHERE Menu')
-
+gg.toast('Not added.')
+-- /
 end
 
 function SUPER90(x)
@@ -4407,7 +4723,15 @@ m_SUPER90 = gg.choice({
 [10957] = '🟡 ROYAL GREEN',
 },nil,
 'SUPER90 Menu')
-
+if (not m_SUPER90) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x2c,
+['flags'] = 0x2,
+['value'] = m_SUPER90,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function SVD(x)
@@ -4512,11 +4836,19 @@ m_SVD = gg.choice({
 [18574] = '🟠 PORTAL',
 },nil,
 'SVD Menu')
-
+if (not m_SVD) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x5c,
+['flags'] = 0x2,
+['value'] = m_SVD,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function TACTICAL_AXE(x)
-m_TACTICAL_AXE = gg.choice({
+m_TACTICALAXE = gg.choice({
 [4672] = '🟠 DEFAULT',
 [4693] = '🔴 BARONIAL',
 [4711] = '🔴 OLIVE',
@@ -4532,8 +4864,16 @@ m_TACTICAL_AXE = gg.choice({
 [10494] = '🔴 ARACHNID',
 [31761] = '🔴 HOME RUN',
 },nil,
-'TACTICAL_AXE Menu')
-
+'TACTICALAXE Menu')
+if (not m_TACTICALAXE) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x0,
+['flags'] = 0x2,
+['value'] = m_TACTICALAXE,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function TACTOOL(x)
@@ -4565,7 +4905,15 @@ m_TACTOOL = gg.choice({
 [31760] = '🔴 CROSSWALK',
 },nil,
 'TACTOOL Menu')
-
+if (not m_TACTOOL) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x0,
+['flags'] = 0x2,
+['value'] = m_TACTOOL,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function TANTO(x)
@@ -4588,7 +4936,15 @@ m_TANTO = gg.choice({
 [19000] = '⚪ DEFAULT',
 },nil,
 'TANTO Menu')
-
+if (not m_TANTO) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x0,
+['flags'] = 0x2,
+['value'] = m_TANTO,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function TOMAHAWK(x)
@@ -4602,11 +4958,19 @@ m_TOMAHAWK = gg.choice({
 [14503] = '⚪ DEFAULT',
 },nil,
 'TOMAHAWK Menu')
-
+if (not m_TOMAHAWK) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x0,
+['flags'] = 0x2,
+['value'] = m_TOMAHAWK,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function TRENCH_KNIFE(x)
-m_TRENCH_KNIFE = gg.choice({
+m_TRENCHKNIFE = gg.choice({
 [8743] = '🟠 DEFAULT',
 [9443] = '🔴 WORMHOLE',
 [9601] = '🔴 STAB MANIA',
@@ -4616,8 +4980,16 @@ m_TRENCH_KNIFE = gg.choice({
 [10008] = '🔴 MOON CRASH',
 [10178] = '🔴 KNIFE OUT',
 },nil,
-'TRENCH_KNIFE Menu')
-
+'TRENCHKNIFE Menu')
+if (not m_TRENCHKNIFE) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x0,
+['flags'] = 0x2,
+['value'] = m_TRENCHKNIFE,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function TRG22(x)
@@ -4732,7 +5104,15 @@ m_TRG22 = gg.choice({
 [10996] = '🟡 GLASS CANNON MAROON',
 },nil,
 'TRG22 Menu')
-
+if (not m_TRG22) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x30,
+['flags'] = 0x2,
+['value'] = m_TRG22,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function URATIO(x)
@@ -4872,7 +5252,15 @@ m_URATIO = gg.choice({
 [15781] = '🟠 MEASURING',
 },nil,
 'URATIO Menu')
-
+if (not m_URATIO) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x34,
+['flags'] = 0x2,
+['value'] = m_URATIO,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function VECTOR(x)
@@ -4997,7 +5385,15 @@ m_VECTOR = gg.choice({
 [10998] = '⚪ CHROMATIC COLD',
 },nil,
 'VECTOR Menu')
-
+if (not m_VECTOR) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x38,
+['flags'] = 0x2,
+['value'] = m_VECTOR,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function XD45(x)
@@ -5111,7 +5507,15 @@ m_XD45 = gg.choice({
 [15369] = '🟠 GUN TWIRL',
 },nil,
 'XD45 Menu')
-
+if (not m_XD45) then else
+gg.setValues({[1] = {
+['address'] = ini + 0x3c,
+['flags'] = 0x2,
+['value'] = m_XD45,
+},
+})
+gg.toast(' (✅) ')
+end
 end
 
 function ZOMBIEHANDS(x)
@@ -5119,8 +5523,11 @@ m_ZOMBIEHANDS = gg.choice({
 [10526] = '🟠 DEFAULT',
 },nil,
 'ZOMBIEHANDS Menu')
-
+gg.toast('Not added.')
+-- /
 end
+
+
 
 goto await
 
