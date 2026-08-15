@@ -1,9 +1,7 @@
 
 
 -- #!/
--- Please note my credits if you will use script in your own project.
--- https://github.com/islavikfx/Critical-Ops-Skinschanger/tree/main/skinschanger(v2).lua
--- https://github.com/islavikfx/Critical-Ops-Skinschanger/tree/main/skins_parser.py
+-- Credit: Yusuf Baba Pro kraldir
 -- #!/
 
 
@@ -147,7 +145,7 @@ skins = gg.choice({
  '• Load Config',
  '• Create Config',
  '• EXIT',
-}, nil, 'Skinschanger Critical Ops (v2)\nGithub: @islavikfx')
+}, nil, 'Skinschanger Critical Ops (v2)\nCredit: Yusuf Baba Pro kraldir')
 if skins == 58 then
  gg.setVisible(true)
  os.exit('0xff')
