@@ -1,10 +1,9 @@
--- //============================================================\\
--- //  TERRAVIA-OPS RADAR · Diagnose
--- //  Prüft, ob dein Gerät die ESP-Patchstelle lesen/schreiben kann.
--- //  KEIN Patch — nur Diagnose. Zeigt dir den Status.
--- //============================================================\\
+-- ============================================================
+--  TERRAVIA-OPS RADAR DIAGNOSE
+--  Checkt ob das Geraet die ESP-Stelle lesen/schreiben kann.
+--  KEIN Patch - nur Diagnose.
+-- ============================================================
 
--- // Das exakte 16-Byte-Muster aus 1.80.0.f3358 (arm64)
 local ORIG_HEX = '1f050031685a40f9e9179f1a09010039'
 
 local function dwordToHexLE(v)
@@ -12,7 +11,6 @@ local function dwordToHexLE(v)
     return h:sub(7, 8) .. h:sub(5, 6) .. h:sub(3, 4) .. h:sub(1, 2)
 end
 
--- // libil2cpp Code-Region (Xa) finden
 local function findCode()
     local ok, mods = pcall(gg.getRangesList)
     if not ok or type(mods) ~= 'table' then return nil end
@@ -24,7 +22,6 @@ local function findCode()
     return nil
 end
 
--- // Alle vorhandenen gg.REGION_*-Konstanten sammeln
 local function allRegionsMask()
     local mask = 0
     for k, v in pairs(gg) do
@@ -35,7 +32,6 @@ local function allRegionsMask()
     return mask
 end
 
--- // 16 Bytes an addr lesen (nil wenn unlesbar)
 local function read16(addr)
     local ok, res = pcall(gg.getValues, {
         { address = addr, flags = 4 },
@@ -51,55 +47,47 @@ local function read16(addr)
 end
 
 gg.setVisible(false)
-gg.toast('Diagnose läuft...')
+gg.toast('Diagnose laeuft...')
 
 local code = findCode()
 if not code then
-    gg.alert('❌ libil2cpp Code-Region (Xa) nicht gefunden!\n\n' ..
-        'Ist Critical Ops gestartet und in GG ausgewählt?\n' ..
-        'Falls ja: prüfe in GG die Prozessliste — muss "Critical Ops" sein.', 'OK')
+    gg.alert('FEHLER: libil2cpp Code-Region (Xa) nicht gefunden!' ..
+        '\n\nIst Critical Ops gestartet und in GG ausgewaehlt?', 'OK')
     gg.setVisible(true)
     os.exit()
 end
 
 local stop = code['end'] or (code.start + (code.size or 0))
-gg.alert('✅ Code-Region gefunden:\n\n' ..
-    'Start: 0x' .. string.format('%X', code.start) .. '\n' ..
-    'Ende:  0x' .. string.format('%X', stop) .. '\n' ..
-    'Größe: 0x' .. string.format('%X', (stop - code.start)) .. '\n\n' ..
-    'Region-Konstanten in deinem GG:\n' .. tostring(allRegionsMask()), 'OK')
+gg.alert('Code-Region gefunden:' ..
+    '\nStart: 0x' .. string.format('%X', code.start) ..
+    '\nEnde:  0x' .. string.format('%X', stop) ..
+    '\nGroesse: 0x' .. string.format('%X', (stop - code.start)) ..
+    '\n\nRegion-Konstanten in deinem GG: ' .. tostring(allRegionsMask()), 'OK')
 
--- 1) Native Suche testen
 gg.toast('Teste native Suche...')
 local mask = allRegionsMask()
 if mask > 0 then pcall(gg.setRanges, mask) end
 gg.searchNumber('h ' .. ORIG_HEX:gsub('(%x%x)', '%1 '), 0x1)
 local n = gg.getResultsCount()
 gg.clearResults()
-gg.alert('🔍 Native Suche nach dem 16-Byte-Muster:\n\n' ..
-    'Gefunden: ' .. tostring(n) .. ' Treffer\n\n' ..
-    'Erwartet: mindestens 1 (das Muster existiert in 1.80.0.f3358 genau 1x).\n' ..
-    'Falls 0: GG kann die Code-Region nicht durchsuchen (Regionen-Problem).', 'OK')
+gg.alert('Native Suche nach dem 16-Byte-Muster:' ..
+    '\n\nGefunden: ' .. tostring(n) .. ' Treffer' ..
+    '\n\nErwartet: mindestens 1' ..
+    '\n(0 = GG kann Code-Region nicht durchsuchen)', 'OK')
 
--- 2) Direktes Lesen an einer Stelle in der Code-Region
 gg.toast('Teste direktes Lesen...')
-local testAddr = code.start + 0x1000  -- eine beliebige Stelle in der Region
+local testAddr = code.start + 0x1000
 local hex = read16(testAddr)
-gg.alert('📖 Direktes Lesen an 0x' .. string.format('%X', testAddr) .. ':\n\n' ..
-    'Bytes: ' .. tostring(hex or 'UNLESBAR') .. '\n\n' ..
-    'Falls "UNLESBAR": GG kann die Code-Region nicht lesen (Root/VM-Problem).\n' ..
-    'Falls Bytes angezeigt werden: Lesen funktioniert!', 'OK')
+gg.alert('Direktes Lesen an 0x' .. string.format('%X', testAddr) .. ':' ..
+    '\n\nBytes: ' .. tostring(hex or 'UNLESBAR') ..
+    '\n\nUNLESBAR = GG kann Code-Region nicht lesen', 'OK')
 
--- 3) Schreib-Test an einer harmlosen Stelle? NEIN — nicht patchen in der Diagnose.
---    Stattdessen: Prüfen ob die Zieladresse (vom bekannten Muster) lesbar wäre,
---    indem wir die native Suche auswerten — das haben wir in Schritt 1 getan.
-
-gg.alert('📋 Zusammenfassung:\n\n' ..
-    'Wenn Schritt 1 ≥1 Treffer UND Schritt 2 Bytes zeigt:\n' ..
-    '→ Dein Gerät kann die Stelle finden und lesen. Das Radar-Script wird funktionieren.\n\n' ..
-    'Wenn Schritt 1 = 0 Treffer:\n' ..
-    '→ GG-Suche blockiert. Schick mir die Diagnose-Werte.\n\n' ..
-    'Wenn Schritt 2 "UNLESBAR":\n' ..
-    '→ Root/GG-Problem auf dem Gerät.', 'OK')
+gg.alert('Zusammenfassung:' ..
+    '\n\nSuche >=1 Treffer UND Bytes lesbar:' ..
+    '\n-> Geraet kann die Stelle finden. Radar-Script wird funktionieren.' ..
+    '\n\nSuche 0 Treffer:' ..
+    '\n-> GG-Suche blockiert.' ..
+    '\n\nUNLESBAR:' ..
+    '\n-> Root/GG-Problem auf dem Geraet.', 'OK')
 
 gg.setVisible(true)

@@ -1,29 +1,23 @@
--- //============================================================\\
--- //  TERRAVIA-OPS RADAR · Critical Ops
--- //  Game Guardian Lua — ESP/Radar Patch für libil2cpp.so
--- //  (nur Radar ESP)
--- //
--- //  FUNKTIONSWEISE:
--- //  Die ESP-Patchstelle hat in 1.80.0.f3358 (arm64) exakt diese 16 Bytes:
--- //    1f 05 00 31 68 5a 40 f9 e9 17 9f 1a 09 01 00 39
--- //    (cmn w8,#1; ldr x8,[x19,#176]; cset w9,eq; strb w9,[x8])
--- //  Primär: GG's native Suche (schnell) nach diesem Muster, Treffer werden
--- //  auf die libil2cpp Xa-Region gefiltert.
--- //  Fallback: Block-Scan der Xa-Region per gg.getValues.
--- //============================================================\\
+-- ============================================================
+--  TERRAVIA-OPS RADAR - Critical Ops
+--  Game Guardian Lua - ESP/Radar Patch fuer libil2cpp.so
+--  (nur Radar ESP)
+--
+--  Die ESP-Patchstelle hat in 1.80.0.f3358 (arm64) exakt diese 16 Bytes:
+--    1f 05 00 31 68 5a 40 f9 e9 17 9f 1a 09 01 00 39
+--    (cmn w8,#1; ldr x8,[x19,#176]; cset w9,eq; strb w9,[x8])
+--  Primaer: GG native Suche nach diesem Muster, Treffer werden auf die
+--  libil2cpp Xa-Region gefiltert. Fallback: Block-Scan per gg.getValues.
+-- ============================================================
 
 local FOUND_FILE = '/sdcard/Download/terravia_ops_radar_found.txt'
 
--- // Das exakte 16-Byte-Muster (Original) und die ON-Bytes (erste 4 Bytes ersetzen)
 local ORIG_HEX = '1f050031685a40f9e9179f1a09010039'
 local ON_HEX   = '28008052685a40f9e9179f1a09010039'
--- // Mit Leerzeichen für GG's Hex-Suche
 local ORIG_SPACED = '1f 05 00 31 68 5a 40 f9 e9 17 9f 1a 09 01 00 39'
 
--- // Gespeicherte absolute Adresse
 local savedAddr = nil
 
--- // libil2cpp Code-Region (Xa) finden
 local function findCode()
     local ok, mods = pcall(gg.getRangesList)
     if not ok or type(mods) ~= 'table' then return nil end
@@ -35,8 +29,6 @@ local function findCode()
     return nil
 end
 
--- // Alle vorhandenen gg.REGION_*-Konstanten als Bitmaske sammeln
--- // (manche GG-Versionen haben kein REGION_CODE — dann nehmen wir alle anderen)
 local function allRegionsMask()
     local mask = 0
     for k, v in pairs(gg) do
@@ -47,13 +39,11 @@ local function allRegionsMask()
     return mask
 end
 
--- // DWord-Integer -> Hex-String in Speicherreihenfolge (little-endian)
 local function dwordToHexLE(v)
     local h = string.format('%08x', v)
     return h:sub(7, 8) .. h:sub(5, 6) .. h:sub(3, 4) .. h:sub(1, 2)
 end
 
--- // 16 Bytes an addr lesen und als Hex-String zurückgeben (nil wenn unlesbar)
 local function read16(addr)
     local ok, res = pcall(gg.getValues, {
         { address = addr, flags = 4 },
@@ -68,14 +58,12 @@ local function read16(addr)
     return dwordToHexLE(a) .. dwordToHexLE(b) .. dwordToHexLE(c) .. dwordToHexLE(d)
 end
 
--- // Prüft, ob addr in der Code-Region liegt
 local function inRegion(addr, code)
     if not code then return false end
     local stop = code['end'] or (code.start + (code.size or 0))
     return addr >= code.start and addr + 16 <= stop
 end
 
--- // Gespeicherte Adresse laden
 local function loadFound()
     local f = io.open(FOUND_FILE, 'rb')
     if not f then return end
@@ -89,8 +77,6 @@ local function saveFound(addr)
     if f then f:write('Radar ESP=0x' .. string.format('%X', addr)) f:close() end
 end
 
--- // PRIMÄR: GG-native Suche nach dem 16-Byte-Muster
--- // returns: Adresse oder nil
 local function searchNative(code)
     local mask = allRegionsMask()
     if mask > 0 then
@@ -113,15 +99,13 @@ local function searchNative(code)
     return nil
 end
 
--- // FALLBACK: Block-Scan der Code-Region (wenn native Suche nichts findet)
--- // returns: Adresse oder nil
 local function scanRegion(code)
     local start = code.start
     local stop = code['end'] or (code.start + (code.size or 0))
     if not stop or stop <= start then return nil end
 
     gg.toast('Block-Scan der Code-Region...')
-    local BATCH = 1024   -- 1024 DWords pro getValues-Aufruf (4 KB)
+    local BATCH = 1024
     local STRIDE = 4
     local total = math.floor((stop - start) / (BATCH * STRIDE)) + 1
     local done = 0
@@ -136,7 +120,6 @@ local function scanRegion(code)
         end
         local ok, vals = pcall(gg.getValues, addrs)
         if ok and vals then
-            -- Batch-Daten in einen zusammenhängenden Hex-String bauen
             local blob = {}
             local bad = false
             for _, r in ipairs(vals) do
@@ -151,7 +134,6 @@ local function scanRegion(code)
                 local hexstr = table.concat(blob)
                 local pos = hexstr:find(ORIG_HEX, 1, true)
                 if pos then
-                    -- Position im Hex-String -> Adresse
                     local byteOff = (pos - 1) / 2
                     return addr + byteOff
                 end
@@ -166,34 +148,31 @@ local function scanRegion(code)
     return nil
 end
 
--- // An addr patchen: enable=true → ON-Bytes, false → Original
 local function writePatch(addr, enable)
     local cur = read16(addr)
     if cur == nil then return false end
     local wantHex = enable and ON_HEX or ORIG_HEX
     if cur == wantHex then return true end
-    -- nur die ersten 4 Bytes ändern (Rest ist identisch)
     local intValue = tonumber(wantHex:sub(7, 8) .. wantHex:sub(5, 6) .. wantHex:sub(3, 4) .. wantHex:sub(1, 2), 16)
     local ok = pcall(gg.setValues, { { address = addr, flags = 4, value = intValue } })
     return ok
 end
 
--- // Radar ESP togglen
 local function toggleRadar()
     local code = findCode()
     if not code then
-        gg.alert('libil2cpp Code-Region nicht gefunden.\nIst Critical Ops gestartet und in GG ausgewählt?', 'OK')
+        gg.alert('libil2cpp Code-Region nicht gefunden.' ..
+            '\nIst Critical Ops gestartet und in GG ausgewaehlt?', 'OK')
         return
     end
 
     local addr = savedAddr
-    -- Gespeicherte Adresse verifizieren
     if addr then
         local hex = read16(addr)
         if hex == ORIG_HEX or hex == ON_HEX then
             local enable = (hex == ORIG_HEX)
             if writePatch(addr, enable) then
-                gg.toast('✅ Radar ESP ' .. (enable and 'AN' or 'AUS'))
+                gg.toast('Radar ESP ' .. (enable and 'AN' or 'AUS'))
             else
                 gg.alert('Radar ESP: Schreiben fehlgeschlagen @0x' .. string.format('%X', addr), 'OK')
             end
@@ -203,31 +182,26 @@ local function toggleRadar()
         end
     end
 
-    -- 1) Native Suche (schnell)
     gg.toast('Suche Radar-ESP Stelle...')
     addr = searchNative(code)
     if not addr then
-        -- 2) Block-Scan (Fallback)
         addr = scanRegion(code)
     end
     if not addr then
-        gg.alert('Radar-ESP Stelle nicht gefunden.\n\n' ..
-            'Das 16-Byte-Muster\n' .. ORIG_HEX .. '\n' ..
-            'wurde nicht gefunden (native Suche + Block-Scan).\n\n' ..
-            '→ Andere Architektur (armeabi-v7a?) oder geänderte Binary.', 'OK')
+        gg.alert('Radar-ESP Stelle nicht gefunden.' ..
+            '\n\nDas 16-Byte-Muster existiert in dieser Version/Architektur nicht.', 'OK')
         return
     end
 
     if writePatch(addr, true) then
         savedAddr = addr
         saveFound(addr)
-        gg.toast('✅ Radar ESP AN @0x' .. string.format('%X', addr))
+        gg.toast('Radar ESP AN @0x' .. string.format('%X', addr))
     else
         gg.alert('Radar ESP: Schreiben fehlgeschlagen @0x' .. string.format('%X', addr), 'OK')
     end
 end
 
--- // Hauptmenü
 local function main()
     loadFound()
     gg.setVisible(false)
@@ -235,8 +209,8 @@ local function main()
 
     while true do
         local choice = gg.choice({
-            '📡 Radar ESP',
-            '🔄 Neu scannen',
+            'Radar ESP',
+            'Neu scannen',
             'EXIT',
         }, nil, 'TERRAVIA OPS RADAR')
 
