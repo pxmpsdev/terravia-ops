@@ -123,7 +123,7 @@ local function findCandidates(ft, base, code)
     -- 2) Pattern-Scan (Hex-String MIT Leerzeichen — GG braucht "1f 05 00 31",
     --    sonst findet die Suche 0 Treffer und meldet fälschlich "Muster existiert nicht")
     if code then
-        pcall(gg.setRanges, gg.REGION_CODE + gg.REGION_ANONYMOUS)
+        pcall(gg.setRanges, code.start)
         local spaced = origHex:gsub('(%x%x)', '%1 ')
         gg.searchNumber('h ' .. spaced, 0x1)
         local n = gg.getResultsCount()
@@ -258,7 +258,9 @@ local function toggleRadar()
     -- DIAGNOSE: rohes Pattern zählen (ohne Filter), damit man sieht ob's überhaupt da ist
     local rawCount = 0
     if code then
-        pcall(gg.setRanges, gg.REGION_CODE + gg.REGION_ANONYMOUS)
+        -- setRanges mit der Adresse der Code-Region (kein REGION_CODE nötig —
+        -- diese Konstante existiert nicht in allen GG-Versionen)
+        pcall(gg.setRanges, code.start)
         local spaced = origHex:gsub('(%x%x)', '%1 ')
         gg.searchNumber('h ' .. spaced, 0x1)
         rawCount = gg.getResultsCount() or 0
