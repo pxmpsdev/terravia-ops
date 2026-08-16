@@ -14,9 +14,11 @@
 local PACKAGE = 'com.criticalforceentertainment.criticalops'
 local FOUND_FILE = '/sdcard/Download/terravia_ops_radar_found.txt'
 
--- // Nur Radar ESP: Name, Original-Muster, ON-Muster, Fallback-Offset (1.70.1)
+-- // Nur Radar ESP: Name, Original-Muster, ON-Muster
+-- // Bekannter Offset für 1.80.0.f3358 (arm64): 0x1513a70
+-- // (base-relativ, im RAM: libil2cpp-Basis + 0x1513a70)
 local FEATURES = {
-    { name = 'Radar ESP', pattern = '1f 05 00 31', on = '28 00 80 52', fileoff = '0x1b1897c+0xac', libsplit = '0x13a400' },
+    { name = 'Radar ESP', pattern = '1f 05 00 31', on = '28 00 80 52', fileoff = '0x1513a70', libsplit = '0x0' },
 }
 
 -- // Gespeicherte base-relative Offsets: name -> number
@@ -283,6 +285,11 @@ end
 -- // Hauptmenü
 local function main()
     loadFound()
+    -- Bekannten Offset als Default setzen (falls nichts gespeichert ist):
+    -- erspart den Pattern-Scan, solange die Version passt (Bytes werden verifiziert).
+    if savedOffsets['Radar ESP'] == nil then
+        savedOffsets['Radar ESP'] = parseHex(FEATURES[1].fileoff) or 0
+    end
     gg.setVisible(false)
     gg.toast('Terravia Ops Radar gestartet')
 
