@@ -118,10 +118,12 @@ local function findCandidates(ft, base, code)
         return { base + saved }
     end
 
-    -- 2) Pattern-Scan mit Folge-Instruktion als Wildcard
+    -- 2) Pattern-Scan (Hex-String MIT Leerzeichen — GG braucht "1f 05 00 31",
+    --    sonst findet die Suche 0 Treffer und meldet fälschlich "Muster existiert nicht")
     if code then
-        pcall(gg.setRanges, code.start)
-        gg.searchNumber('h ' .. origHex .. ' ?? ?? ?? ??', 0x1)
+        pcall(gg.setRanges, gg.REGION_CODE + gg.REGION_ANONYMOUS)
+        local spaced = origHex:gsub('(%x%x)', '%1 ')
+        gg.searchNumber('h ' .. spaced, 0x1)
         local n = gg.getResultsCount()
         if n and n > 0 then
             local res = gg.getResults(n)
@@ -250,11 +252,28 @@ local function toggleRadar()
 
     -- Keine gespeicherte Stelle -> Kandidaten suchen und testen
     gg.toast('Suche Radar-ESP Stelle...')
+
+    -- DIAGNOSE: rohes Pattern zählen (ohne Filter), damit man sieht ob's überhaupt da ist
+    local rawCount = 0
+    if code then
+        pcall(gg.setRanges, gg.REGION_CODE + gg.REGION_ANONYMOUS)
+        local spaced = origHex:gsub('(%x%x)', '%1 ')
+        gg.searchNumber('h ' .. spaced, 0x1)
+        rawCount = gg.getResultsCount() or 0
+        gg.clearResults()
+    end
+
     local cands = findCandidates(ft, base, code)
     if #cands == 0 then
-        gg.alert('Radar-ESP Stelle nicht gefunden.\n' ..
-            'Das Byte-Muster "' .. ft.pattern .. '" existiert in dieser Spielversion nicht.\n' ..
-            '→ Spiel-Update abwarten oder neues Muster eintragen.', 'OK')
+        gg.alert('Radar-ESP Stelle nicht gefunden.\n\n' ..
+            'Diagnose:\n' ..
+            '- Muster "' .. ft.pattern .. '" gefunden: ' .. rawCount .. 'x\n' ..
+            '- Davon mit Sprung danach: 0\n\n' ..
+            'Möglich:\n' ..
+            '1) Spielversion hat anderes Muster (Funktion umgebaut)\n' ..
+            '2) GG-Suche braucht anderen Typ — probier im GG-Suchfeld manuell:\n' ..
+            '   h ' .. origHex:gsub('(%x%x)', '%1 ') .. '\n\n' ..
+            'Wenn GG manuell Treffer zeigt, sag mir die Anzahl — dann passe ich das Script an.', 'OK')
         return
     end
 
