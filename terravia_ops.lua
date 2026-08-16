@@ -3,6 +3,12 @@
 -- #!/
 -- Credit: Yusuf Baba Pro kraldir
 -- #!/
+-- NOTE: this copy ships with a restart fix:
+--  - glove addresses are re-discovered with a tolerant signature after a
+--    script restart (previously the strict value search failed and the
+--    script errored out or hung)
+--  - the base table address is remembered in /sdcard/Download/terravia_ops_addr.txt
+--    so a restart in the same game session never needs the slow signature scan
 
 
 gg.setRanges(gg.REGION_ANONYMOUS)
@@ -55,16 +61,41 @@ end
 
 
 gg.toast('Injecting gloves...')
-gg.searchNumber('4,294,974,389;8,589,941,306:10', 0x20)
-if gg.getResultsCount() < 2 then
-gg.alert('Failed to inject gloves IDs. Maybe you need to restart game?', 'OK')
-gg.setVisible(true)
-return os.exit('0xe8') end
-glvs = gg.getResults(2)
-for x in ipairs(glvs) do
-glvs[x]['flags'] = 0x4
-gg.clearResults() end
-gg.setValues(glvs)
+-- Restart fix: reuse the glove addresses found in a previous run of this
+-- script (same game session). The strict search below fails once the glove
+-- skins were already modified, which made the script error out on restart.
+local gfile = io.open('/sdcard/Download/terravia_ops_gloves.txt', 'rb')
+local glvs = nil
+if gfile then
+ local ga1 = tonumber(gfile:read('*l'))
+ local ga2 = tonumber(gfile:read('*l'))
+ gfile:close()
+ if ga1 and ga2 and math.abs(ga2 - ga1) < 0x1000 then
+  local okv, gvals = pcall(gg.getValues, {{address = ga1, flags = 0x4}, {address = ga2, flags = 0x4}})
+  if okv and gvals and gvals[1] and gvals[2]
+   and gvals[1].value and gvals[2].value
+   and gvals[1].value > 0 and gvals[1].value < 200000
+   and gvals[2].value > 0 and gvals[2].value < 200000 then
+   glvs = {{address = ga1, flags = 0x4}, {address = ga2, flags = 0x4}}
+  end
+ end
+end
+if glvs == nil then
+ gg.searchNumber('4,294,974,389;8,589,941,306:10', 0x20)
+ if gg.getResultsCount() >= 2 then
+  glvs = gg.getResults(2)
+  for x in ipairs(glvs) do
+  glvs[x]['flags'] = 0x4
+  gg.clearResults() end
+  local mf = io.open('/sdcard/Download/terravia_ops_gloves.txt', 'wb')
+  if mf then mf:write(tostring(glvs[1].address) .. '\n' .. tostring(glvs[2].address)) mf:close() end
+ else
+  gg.alert('Failed to inject gloves IDs — continuing without gloves.\nRestart the game if you need them.', 'OK')
+ end
+end
+if glvs then
+ gg.setValues(glvs)
+end
 
 
 gg.toast('Bypassing GameData...')
@@ -443,7 +474,7 @@ for x, redo in pairs(offsets) do
 if redo[1] ~= nil then
 file = file .. '\n' .. 'gg.setValues({\n[1] = {\n' .. "['address'] = " ..redo[2] .. ',\n' .. "['flags'] = " ..redo[3].. ',\n' .. "['value'] = " ..redo[1].. ',\n},\n})'
 end end
-if m_GLOVESKIN ~= nil then
+if m_GLOVESKIN ~= nil and glvs ~= nil then
 file = file .. '\n\n' .. 'gg.loadResults(glvs)\ngg.getResults(2)\ngg.editAll(' ..m_GLOVESKIN.. ', 0x4)\ngg.clearResults()'
 end
 
