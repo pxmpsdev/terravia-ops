@@ -15,18 +15,36 @@ local function findCode()
     local ok, mods = pcall(gg.getRangesList)
     if not ok or type(mods) ~= 'table' then return nil end
     for _, m in ipairs(mods) do
-        if m and m.start and (m.name or ''):find('libil2cpp', 1, true) and m.state == 'Xa' then
-            return m
+        if m and m.start and (m.name or ''):find('libil2cpp', 1, true) then
+            local st = m.state or ''
+            -- tolerant: Xa, xa, X, x (executable)
+            if st:lower():find('x') then
+                return m
+            end
         end
     end
     return nil
+end
+
+local function bitor(a, b)
+    local r = 0
+    local p = 1
+    while a > 0 or b > 0 do
+        local abit = a % 2
+        local bbit = b % 2
+        if abit == 1 or bbit == 1 then r = r + p end
+        a = math.floor(a / 2)
+        b = math.floor(b / 2)
+        p = p * 2
+    end
+    return r
 end
 
 local function allRegionsMask()
     local mask = 0
     for k, v in pairs(gg) do
         if type(v) == 'number' and k:match('^REGION_') then
-            mask = mask + v
+            mask = bitor(mask, v)
         end
     end
     return mask

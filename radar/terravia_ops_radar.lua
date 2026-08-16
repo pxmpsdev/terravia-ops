@@ -22,18 +22,38 @@ local function findCode()
     local ok, mods = pcall(gg.getRangesList)
     if not ok or type(mods) ~= 'table' then return nil end
     for _, m in ipairs(mods) do
-        if m and m.start and (m.name or ''):find('libil2cpp', 1, true) and m.state == 'Xa' then
-            return m
+        if m and m.start and (m.name or ''):find('libil2cpp', 1, true) then
+            local st = m.state or ''
+            -- tolerant: Xa, xa, X, x (executable), auch "Xa" mit Leerzeichen
+            if st:lower():find('x') then
+                return m
+            end
         end
     end
     return nil
+end
+
+-- // bitweises ODER (LuaJ hat oft kein | Operator)
+local function bitor(a, b)
+    local r = 0
+    local p = 1
+    while a > 0 or b > 0 do
+        local abit = a % 2
+        local bbit = b % 2
+        if abit == 1 or bbit == 1 then r = r + p end
+        a = math.floor(a / 2)
+        b = math.floor(b / 2)
+        p = p * 2
+    end
+    return r
 end
 
 local function allRegionsMask()
     local mask = 0
     for k, v in pairs(gg) do
         if type(v) == 'number' and k:match('^REGION_') then
-            mask = mask + v
+            -- OR statt Summe (Konstanten koennen ueberlappen)
+            mask = bitor(mask, v)
         end
     end
     return mask
@@ -104,8 +124,19 @@ local function scanRegion(code)
     local stop = code['end'] or (code.start + (code.size or 0))
     if not stop or stop <= start then return nil end
 
+    -- Sicherheitscheck: Region > 50 MB blockweise zu scannen dauert zu lange.
+    -- Die native Suche sollte das Muster in Sekunden finden; wenn sie fehlschlaegt
+    -- und die Region riesig ist, brechen wir ab statt Minuten zu blockieren.
+    local regionSize = stop - start
+    if regionSize > 0x3200000 then  -- > 50 MB
+        gg.alert('Code-Region ist ' .. string.format('0x%X', regionSize) ..
+            ' Bytes gross (zu gross fuer Block-Scan).' ..
+            '\nDie native Suche hat das Muster nicht gefunden.', 'OK')
+        return nil
+    end
+
     gg.toast('Block-Scan der Code-Region...')
-    local BATCH = 1024
+    local BATCH = 200   -- GG getValues-Limit (~200 Adressen pro Aufruf)
     local STRIDE = 4
     local total = math.floor((stop - start) / (BATCH * STRIDE)) + 1
     local done = 0
