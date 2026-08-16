@@ -1,327 +1,195 @@
 -- //============================================================\\
 -- //  TERRAVIA-OPS RADAR · Critical Ops
 -- //  Game Guardian Lua — ESP/Radar Patch für libil2cpp.so
--- //  (nur Radar ESP; Hitboxes/Wallshot entfernt)
+-- //  (nur Radar ESP)
 -- //
--- //  WICHTIG ZUM VERSTEHEN:
--- //  Das Byte-Muster "1f 05 00 31" (cmn w8, #1) kommt oft mehrfach in der
--- //  Binary vor. Deshalb sucht das Script KANDIDATEN und filtert sie:
--- //  die Stelle muss von einer Sprung-Instruktion gefolgt sein.
--- //  Bleiben mehrere Kandidaten, testet das Script sie nacheinander —
--- //  du musst dabei IM MATCH sein und auf die Minimap schauen.
+-- //  FUNKTIONSWEISE:
+-- //  Die ESP-Patchstelle hat in 1.80.0.f3358 (arm64) diese 16 Bytes:
+-- //    1f 05 00 31 68 5a 40 f9 e9 17 9f 1a 09 01 00 39
+-- //    (cmn w8,#1; ldr x8,[x19,#176]; cset w9,eq; strb w9,[x8])
+-- //  Das Script scannt die libil2cpp Code-Region (Xa) blockweise mit
+-- //  gg.getValues nach diesen Bytes — das findet die Stelle sicher,
+-- //  egal wo die Region beginnt. Kein setRanges, keine Offsets nötig.
 -- //============================================================\\
 
-local PACKAGE = 'com.criticalforceentertainment.criticalops'
 local FOUND_FILE = '/sdcard/Download/terravia_ops_radar_found.txt'
 
--- // Nur Radar ESP: Name, Original-Muster, ON-Muster
--- // Bekannter Offset für 1.80.0.f3358 (arm64):
--- //   vaddr in der Lib:        0x1513a70  (cmn w8,#1; cset; strb)
--- //   .text-Sektion vaddr:     0x13d5f80
--- //   → relativ zur Code-Region (Xa-Region in GG): 0x1513a70 - 0x13d5f80 = 0x13aaf0
--- // Die Code-Region (Xa) beginnt in GG's Regionen-Liste bei LibBase+.text-vaddr.
-local FEATURES = {
-    { name = 'Radar ESP', pattern = '1f 05 00 31', on = '28 00 80 52', fileoff = '0x13aaf0', libsplit = '0x0' },
-}
+-- // Das exakte 16-Byte-Muster (Original) und die ON-Bytes (erste 4 Bytes ersetzen)
+local ORIG_HEX = '1f050031685a40f9e9179f1a09010039'
+local ON_HEX   = '28008052685a40f9e9179f1a09010039'
 
--- // Gespeicherte base-relative Offsets: name -> number
-local savedOffsets = {}
+-- // Gespeicherte absolute Adresse
+local savedAddr = nil
 
--- // libil2cpp Basis + Code-Region
-local function findLib()
+-- // libil2cpp Code-Region (Xa) finden
+local function findCode()
     local ok, mods = pcall(gg.getRangesList)
     if not ok or type(mods) ~= 'table' then return nil end
-    local base, code = nil, nil
     for _, m in ipairs(mods) do
-        if m and m.start and (m.name or ''):find('libil2cpp', 1, true) then
-            if not base or m.start < base then base = m.start end
-            if m.state == 'Xa' then code = m end
+        if m and m.start and (m.name or ''):find('libil2cpp', 1, true) and m.state == 'Xa' then
+            return m
         end
     end
-    if not base then return nil end
-    return base, code
-end
-
-local function readDword(addr)
-    local ok, res = pcall(gg.getValues, { { address = addr, flags = 4 } })
-    if ok and res and res[1] then return res[1].value end
     return nil
 end
 
--- // DWord-Integer (wie GG ihn liefert) -> Hex-String in Speicherreihenfolge
+-- // Mehrere DWords auf einmal lesen (gg.getValues ist dafür da)
+-- // returns: Tabelle addr -> Wert oder nil
+local function readDwords(addrs)
+    local req = {}
+    for i, a in ipairs(addrs) do req[i] = { address = a, flags = 4 } end
+    local ok, res = pcall(gg.getValues, req)
+    if not ok or not res then return nil end
+    local out = {}
+    for i, r in ipairs(res) do
+        if r and r.value ~= nil then out[addrs[i]] = r.value end
+    end
+    return out
+end
+
+-- // DWord-Integer -> Hex-String in Speicherreihenfolge (little-endian)
 local function dwordToHexLE(v)
     local h = string.format('%08x', v)
     return h:sub(7, 8) .. h:sub(5, 6) .. h:sub(3, 4) .. h:sub(1, 2)
 end
 
-local function normHex(s)
-    return (tostring(s or ''):gsub('%s+', ''):lower())
+-- // 16 Bytes an addr lesen und als Hex-String zurückgeben (nil wenn unlesbar)
+local function read16(addr)
+    local vals = readDwords({ addr, addr + 4, addr + 8, addr + 12 })
+    if not vals then return nil end
+    local a, b, c, d = vals[addr], vals[addr + 4], vals[addr + 8], vals[addr + 12]
+    if a == nil or b == nil or c == nil or d == nil then return nil end
+    -- unlesbare Stellen liefern 0xffffffff — aussortieren
+    if a == 0xffffffff or b == 0xffffffff or c == 0xffffffff or d == 0xffffffff then return nil end
+    return dwordToHexLE(a) .. dwordToHexLE(b) .. dwordToHexLE(c) .. dwordToHexLE(d)
 end
 
-local function parseHex(s)
-    s = tostring(s or ''):gsub('%s+', '')
-    if s:find('+') then
-        local a, b = s:match('^([^+]+)%+(.+)$')
-        if a and b then
-            return tonumber(a:gsub('^0[xX]', ''), 16) + tonumber(b:gsub('^0[xX]', ''), 16)
-        end
+-- // Gespeicherte Adresse laden
+local function loadFound()
+    local f = io.open(FOUND_FILE, 'rb')
+    if not f then return end
+    local line = f:read('*a')
+    f:close()
+    savedAddr = tonumber(line:match('0x([0-9a-fA-F]+)'), 16)
+end
+
+local function saveFound(addr)
+    local f = io.open(FOUND_FILE, 'wb')
+    if f then f:write('Radar ESP=0x' .. string.format('%X', addr)) f:close() end
+end
+
+-- // Blockweise die Code-Region nach dem 16-Byte-Muster durchsuchen
+-- // returns: Adresse oder nil
+local function scanRegion(code)
+    local start = code.start
+    local stop = code['end'] or (code.start + (code.size or 0))
+    if not stop or stop <= start then
+        gg.alert('Code-Region ungültig: 0x' .. string.format('%X', start), 'OK')
+        return nil
     end
-    return tonumber(s:gsub('^0[xX]', ''), 16)
+
+    gg.toast('Scanne Code-Region (0x' .. string.format('%X', (stop - start)) .. ' Bytes)...')
+    local BATCH = 128   -- 128 DWords pro gg.getValues-Aufruf (512 Bytes)
+    local STRIDE = 4    -- 4-Byte-Schritte
+
+    local addr = start
+    while addr + 16 <= stop do
+        -- Batch an Adressen bauen
+        local addrs = {}
+        local n = 0
+        for a = addr, math.min(addr + (BATCH - 1) * STRIDE, stop - 16), STRIDE do
+            n = n + 1
+            addrs[n] = a
+        end
+        local vals = readDwords(addrs)
+        if vals then
+            for _, a in ipairs(addrs) do
+                local hex = read16(a)
+                if hex == ORIG_HEX or hex == ON_HEX then
+                    return a
+                end
+            end
+        end
+        addr = addr + BATCH * STRIDE
+    end
+    return nil
 end
 
-local function bytesMatch(addr, origHex, onHex)
-    local v = readDword(addr)
-    if v == nil then return false end
-    local h = dwordToHexLE(v)
-    return h == origHex or h == onHex
-end
-
--- // An addr auf enable setzen (true=ON, false=Original)
-local function writePatch(addr, enable, origHex, onHex)
-    local cur = readDword(addr)
+-- // An addr patchen: enable=true → ON-Bytes, false → Original
+local function writePatch(addr, enable)
+    local cur = read16(addr)
     if cur == nil then return false end
-    local curHex = dwordToHexLE(cur)
-    local want = enable and onHex or origHex
-    if curHex == want then return true end
-    -- GG schreibt little-endian: Hex-String umdrehen
-    local intValue = tonumber(want:sub(7, 8) .. want:sub(5, 6) .. want:sub(3, 4) .. want:sub(1, 2), 16)
+    local wantHex = enable and ON_HEX or ORIG_HEX
+    if cur == wantHex then return true end
+    -- nur die ersten 4 Bytes ändern (Rest ist identisch)
+    local intValue = tonumber(wantHex:sub(7, 8) .. wantHex:sub(5, 6) .. wantHex:sub(3, 4) .. wantHex:sub(1, 2), 16)
     local ok = pcall(gg.setValues, { { address = addr, flags = 4, value = intValue } })
     return ok
 end
 
--- // Gespeicherte Offsets laden
-local function loadFound()
-    local f = io.open(FOUND_FILE, 'rb')
-    if not f then return end
-    for line in f:lines() do
-        local name, off = line:match('^([^=]+)=0x([0-9a-fA-F]+)$')
-        if name and off then savedOffsets[name] = tonumber(off, 16) end
-    end
-    f:close()
-end
-
-local function saveFound()
-    local lines = {}
-    for _, ft in ipairs(FEATURES) do
-        local off = savedOffsets[ft.name]
-        table.insert(lines, ft.name .. '=0x' .. (off and string.format('%X', off) or '???????'))
-    end
-    local f = io.open(FOUND_FILE, 'wb')
-    if f then f:write(table.concat(lines, '\n')) f:close() end
-end
-
--- // Kandidaten-Adressen für ein Feature finden (gefiltert)
--- // returns: Tabelle mit Adressen (leer wenn nichts)
-local function findCandidates(ft, base, code)
-    local origHex = normHex(ft.pattern)
-    local onHex = normHex(ft.on)
-    local cands = {}
-
-    -- 1) Gespeicherter Offset (relativ zur Code-Region, falls noch gültig)
-    local saved = savedOffsets[ft.name]
-    if saved and code and bytesMatch(code.start + saved, origHex, onHex) then
-        return { code.start + saved }
-    end
-    -- 1b) Diagnose wenn der gespeicherte/ bekannte Offset NICHT matcht:
-    --     zeige Code-Region + Bytes an der Stelle, damit man sieht was los ist
-    if saved then
-        local cstart = code and code.start or 0
-        local v = readDword(cstart + saved)
-        local vhex = v and dwordToHexLE(v) or 'unlesbar'
-        local regionInfo = ''
-        if code then
-            regionInfo = 'Code-Region: 0x' .. string.format('%X', code.start) ..
-                ' - 0x' .. string.format('%X', code['end'] or (code.start + code.size)) .. '\n'
-        end
-        gg.alert('Bekannter Offset 0x' .. string.format('%X', saved) .. ' matcht nicht.\n\n' ..
-            regionInfo ..
-            'Zieladresse:     0x' .. string.format('%X', cstart + saved) .. '\n' ..
-            'Bytes dort:      ' .. vhex .. '\n' ..
-            'Erwartet:        ' .. origHex .. ' (oder ' .. onHex .. ')\n\n' ..
-            '→ Code-Region falsch oder andere Spielversion.\n' ..
-            'Schick mir diese Werte, dann passe ich den Offset an.', 'OK')
-    end
-
-    -- 2) Pattern-Scan (Hex-String MIT Leerzeichen — GG braucht "1f 05 00 31",
-    --    sonst findet die Suche 0 Treffer und meldet fälschlich "Muster existiert nicht")
-    if code then
-        pcall(gg.setRanges, code.start)
-        local spaced = origHex:gsub('(%x%x)', '%1 ')
-        gg.searchNumber('h ' .. spaced, 0x1)
-        local n = gg.getResultsCount()
-        if n and n > 0 then
-            local res = gg.getResults(n)
-            gg.clearResults()
-            -- Filter: Stelle muss Original/ON sein UND gefolgt von Sprung-Instruktion
-            -- (b.cond=0x54, cbz/cbnz=0x35/0x37, tbz/tbnz=0x34/0x36)
-            for _, r in ipairs(res) do
-                if bytesMatch(r.address, origHex, onHex) then
-                    local nextDword = readDword(r.address + 4)
-                    if nextDword then
-                        -- ARM64-Instruktionen little-endian: Opcode-Feld (0x54 etc.)
-                        -- liegt im höchsten Byte des DWord.
-                        local opByte = math.floor(nextDword / 0x1000000) % 0x100
-                        if opByte == 0x54 or opByte == 0x34 or opByte == 0x35 or opByte == 0x36 or opByte == 0x37 then
-                            table.insert(cands, r.address)
-                        end
-                    end
-                end
-            end
-            -- Fallback: falls Filter nichts findet, alle verifizierten Treffer
-            if #cands == 0 then
-                for _, r in ipairs(res) do
-                    if bytesMatch(r.address, origHex, onHex) then
-                        table.insert(cands, r.address)
-                    end
-                end
-            end
-        end
-    end
-
-    -- 3) Fester Offset (relativ zur Code-Region)
-    if #cands == 0 and code and ft.fileoff then
-        local off = parseHex(ft.fileoff)
-        if off then
-            local addr = code.start + off
-            if bytesMatch(addr, origHex, onHex) then
-                table.insert(cands, addr)
-            end
-        end
-    end
-
-    return cands
-end
-
--- // Kandidaten nacheinander testen (User muss im Match sein)
--- // returns: true wenn einer funktioniert hat (und gespeichert wurde)
-local function tryCandidates(ft, code, cands)
-    local origHex = normHex(ft.pattern)
-    local onHex = normHex(ft.on)
-
-    if #cands == 1 then
-        -- Nur ein Kandidat: direkt patchen, kein Test nötig
-        if writePatch(cands[1], true, origHex, onHex) then
-            savedOffsets[ft.name] = cands[1] - code.start
-            saveFound()
-            gg.toast('✅ Radar ESP gepatcht @0x' .. string.format('%X', cands[1]))
-            return true
-        end
-        return false
-    end
-
-    gg.alert('Es wurden ' .. #cands .. ' Kandidaten gefunden.\n\n' ..
-        'Das Script testet sie jetzt nacheinander.\n' ..
-        'WICHTIG: Sei IM MATCH und schau nach jedem Test auf die Minimap!\n\n' ..
-        'Los?', 'OK')
-
-    for i, addr in ipairs(cands) do
-        if not writePatch(addr, true, origHex, onHex) then
-            gg.toast('Kandidat ' .. i .. ' nicht beschreibbar, überspringe')
-        else
-            gg.toast('Kandidat ' .. i .. '/' .. #cands .. ' AN @0x' .. string.format('%X', addr))
-            gg.sleep(7000)  -- Zeit zum Schauen auf die Minimap
-        end
-
-        local choice = gg.choice({
-            '✅ Radar AN',
-            '❌ Nicht AN',
-            'Abbrechen',
-        }, nil, 'Kandidat ' .. i .. '/' .. #cands)
-
-        if choice == 1 then
-            savedOffsets[ft.name] = addr - code.start
-            saveFound()
-            gg.toast('✅ Gespeichert! Radar ESP ist jetzt an.')
-            return true
-        elseif choice == 3 then
-            writePatch(addr, false, origHex, onHex)
-            return false
-        else
-            writePatch(addr, false, origHex, onHex)  -- zurück auf Original
-        end
-    end
-
-    gg.alert('Kein Kandidat hat funktioniert.\n' ..
-        'Das Byte-Muster existiert in dieser Spielversion nicht (Funktion umgebaut).\n' ..
-        '→ Spiel-Update abwarten oder neues Muster eintragen.', 'OK')
-    return false
-end
-
--- // Radar ESP togglen (an/aus), bei unbekannter Stelle: Kandidaten testen
+-- // Radar ESP togglen
 local function toggleRadar()
-    local base, code = findLib()
-    if not base then
-        gg.alert('libil2cpp.so nicht gefunden.\nIst Critical Ops gestartet und in GG ausgewählt?', 'OK')
+    local code = findCode()
+    if not code then
+        gg.alert('libil2cpp Code-Region nicht gefunden.\nIst Critical Ops gestartet und in GG ausgewählt?', 'OK')
         return
     end
 
-    local ft = FEATURES[1]
-    local origHex = normHex(ft.pattern)
-    local onHex = normHex(ft.on)
-
-    -- Gespeicherter Offset (relativ zur Code-Region) vorhanden und gültig -> direkt togglen
-    local saved = savedOffsets[ft.name]
-    if saved and code and bytesMatch(code.start + saved, origHex, onHex) then
-        local addr = code.start + saved
-        local curHex = dwordToHexLE(readDword(addr))
-        local enable = curHex == origHex
-        if writePatch(addr, enable, origHex, onHex) then
-            gg.toast('✅ Radar ESP ' .. (enable and 'AN' or 'AUS'))
+    local addr = savedAddr
+    -- Gespeicherte Adresse verifizieren
+    if addr then
+        local hex = read16(addr)
+        if hex == ORIG_HEX or hex == ON_HEX then
+            -- direkt togglen
+            local enable = (hex == ORIG_HEX)
+            if writePatch(addr, enable) then
+                gg.toast('✅ Radar ESP ' .. (enable and 'AN' or 'AUS'))
+            else
+                gg.alert('Radar ESP: Schreiben fehlgeschlagen @0x' .. string.format('%X', addr), 'OK')
+            end
+            return
         else
-            gg.alert('Radar ESP: Schreiben fehlgeschlagen.', 'OK')
+            gg.alert('Gespeicherte Adresse 0x' .. string.format('%X', addr) ..
+                ' matcht nicht mehr (Bytes: ' .. tostring(hex) .. ').\nScanne neu...', 'OK')
+            savedAddr = nil
         end
-        return
     end
 
-    -- Keine gespeicherte Stelle -> Kandidaten suchen und testen
-    gg.toast('Suche Radar-ESP Stelle...')
-
-    -- DIAGNOSE: rohes Pattern zählen (ohne Filter), damit man sieht ob's überhaupt da ist
-    local rawCount = 0
-    if code then
-        -- setRanges mit der Adresse der Code-Region (kein REGION_CODE nötig —
-        -- diese Konstante existiert nicht in allen GG-Versionen)
-        pcall(gg.setRanges, code.start)
-        local spaced = origHex:gsub('(%x%x)', '%1 ')
-        gg.searchNumber('h ' .. spaced, 0x1)
-        rawCount = gg.getResultsCount() or 0
-        gg.clearResults()
-    end
-
-    local cands = findCandidates(ft, base, code)
-    if #cands == 0 then
+    -- Scannen
+    gg.toast('Suche Radar-ESP Stelle (16-Byte-Muster)...')
+    addr = scanRegion(code)
+    if not addr then
         gg.alert('Radar-ESP Stelle nicht gefunden.\n\n' ..
-            'Diagnose:\n' ..
-            '- Muster "' .. ft.pattern .. '" gefunden: ' .. rawCount .. 'x\n' ..
-            '- Davon mit Sprung danach: 0\n\n' ..
-            'Möglich:\n' ..
-            '1) Spielversion hat anderes Muster (Funktion umgebaut)\n' ..
-            '2) GG-Suche braucht anderen Typ — probier im GG-Suchfeld manuell:\n' ..
-            '   h ' .. origHex:gsub('(%x%x)', '%1 ') .. '\n\n' ..
-            'Wenn GG manuell Treffer zeigt, sag mir die Anzahl — dann passe ich das Script an.', 'OK')
+            'Das 16-Byte-Muster\n' .. ORIG_HEX .. '\n' ..
+            'wurde in der Code-Region 0x' .. string.format('%X', code.start) ..
+            ' - 0x' .. string.format('%X', code['end'] or (code.start + code.size)) ..
+            ' nicht gefunden.\n\n' ..
+            '→ Andere Spielversion oder andere Architektur (armeabi-v7a?).', 'OK')
         return
     end
 
-    tryCandidates(ft, code, cands)
+    -- Gefunden → patchen und speichern
+    if writePatch(addr, true) then
+        savedAddr = addr
+        saveFound(addr)
+        gg.toast('✅ Radar ESP AN @0x' .. string.format('%X', addr))
+    else
+        gg.alert('Radar ESP: Schreiben fehlgeschlagen @0x' .. string.format('%X', addr), 'OK')
+    end
 end
 
 -- // Hauptmenü
 local function main()
     loadFound()
-    -- Bekannten Offset als Default setzen (falls nichts gespeichert ist):
-    -- erspart den Pattern-Scan, solange die Version passt (Bytes werden verifiziert).
-    if savedOffsets['Radar ESP'] == nil then
-        savedOffsets['Radar ESP'] = parseHex(FEATURES[1].fileoff) or 0
-    end
     gg.setVisible(false)
     gg.toast('Terravia Ops Radar gestartet')
 
     while true do
         local choice = gg.choice({
             '📡 Radar ESP',
-            '🔄 Scan erzwingen',
+            '🔄 Neu scannen',
             'EXIT',
-        }, nil, 'TERRAVIA OPS RADAR\n(nur ESP)')
+        }, nil, 'TERRAVIA OPS RADAR')
 
         if choice == nil or choice == 3 then
             gg.setVisible(true)
@@ -329,7 +197,7 @@ local function main()
         end
 
         if choice == 2 then
-            savedOffsets['Radar ESP'] = nil  -- gespeicherten Offset verwerfen
+            savedAddr = nil
             gg.toast('Neuer Scan...')
         end
 
