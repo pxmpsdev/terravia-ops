@@ -15,10 +15,13 @@ local PACKAGE = 'com.criticalforceentertainment.criticalops'
 local FOUND_FILE = '/sdcard/Download/terravia_ops_radar_found.txt'
 
 -- // Nur Radar ESP: Name, Original-Muster, ON-Muster
--- // Bekannter Offset für 1.80.0.f3358 (arm64): 0x1513a70
--- // (base-relativ, im RAM: libil2cpp-Basis + 0x1513a70)
+-- // Bekannter Offset für 1.80.0.f3358 (arm64):
+-- //   vaddr in der Lib:        0x1513a70  (cmn w8,#1; cset; strb)
+-- //   .text-Sektion vaddr:     0x13d5f80
+-- //   → relativ zur Code-Region (Xa-Region in GG): 0x1513a70 - 0x13d5f80 = 0x13aaf0
+-- // Die Code-Region (Xa) beginnt in GG's Regionen-Liste bei LibBase+.text-vaddr.
 local FEATURES = {
-    { name = 'Radar ESP', pattern = '1f 05 00 31', on = '28 00 80 52', fileoff = '0x1513a70', libsplit = '0x0' },
+    { name = 'Radar ESP', pattern = '1f 05 00 31', on = '28 00 80 52', fileoff = '0x13aaf0', libsplit = '0x0' },
 }
 
 -- // Gespeicherte base-relative Offsets: name -> number
@@ -114,23 +117,29 @@ local function findCandidates(ft, base, code)
     local onHex = normHex(ft.on)
     local cands = {}
 
-    -- 1) Gespeicherter Offset (falls noch gültig)
+    -- 1) Gespeicherter Offset (relativ zur Code-Region, falls noch gültig)
     local saved = savedOffsets[ft.name]
-    if saved and base and bytesMatch(base + saved, origHex, onHex) then
-        return { base + saved }
+    if saved and code and bytesMatch(code.start + saved, origHex, onHex) then
+        return { code.start + saved }
     end
     -- 1b) Diagnose wenn der gespeicherte/ bekannte Offset NICHT matcht:
-    --     zeige Basis + Bytes an der Stelle, damit man sieht was los ist
-    if saved and base then
-        local v = readDword(base + saved)
+    --     zeige Code-Region + Bytes an der Stelle, damit man sieht was los ist
+    if saved then
+        local cstart = code and code.start or 0
+        local v = readDword(cstart + saved)
         local vhex = v and dwordToHexLE(v) or 'unlesbar'
+        local regionInfo = ''
+        if code then
+            regionInfo = 'Code-Region: 0x' .. string.format('%X', code.start) ..
+                ' - 0x' .. string.format('%X', code['end'] or (code.start + code.size)) .. '\n'
+        end
         gg.alert('Bekannter Offset 0x' .. string.format('%X', saved) .. ' matcht nicht.\n\n' ..
-            'libil2cpp Basis: 0x' .. string.format('%X', base) .. '\n' ..
-            'Zieladresse:     0x' .. string.format('%X', base + saved) .. '\n' ..
+            regionInfo ..
+            'Zieladresse:     0x' .. string.format('%X', cstart + saved) .. '\n' ..
             'Bytes dort:      ' .. vhex .. '\n' ..
             'Erwartet:        ' .. origHex .. ' (oder ' .. onHex .. ')\n\n' ..
-            '→ Basis falsch oder andere Spielversion.\n' ..
-            'Wenn Basis wie erwartet aussieht, hat dein Spiel eine andere Version als 1.80.0.f3358.', 'OK')
+            '→ Code-Region falsch oder andere Spielversion.\n' ..
+            'Schick mir diese Werte, dann passe ich den Offset an.', 'OK')
     end
 
     -- 2) Pattern-Scan (Hex-String MIT Leerzeichen — GG braucht "1f 05 00 31",
@@ -169,12 +178,11 @@ local function findCandidates(ft, base, code)
         end
     end
 
-    -- 3) Fester Offset (nur 1.70.1)
-    if #cands == 0 and base and ft.fileoff and ft.libsplit then
+    -- 3) Fester Offset (relativ zur Code-Region)
+    if #cands == 0 and code and ft.fileoff then
         local off = parseHex(ft.fileoff)
-        local split = parseHex(ft.libsplit)
-        if off and split then
-            local addr = base + off - split
+        if off then
+            local addr = code.start + off
             if bytesMatch(addr, origHex, onHex) then
                 table.insert(cands, addr)
             end
@@ -186,14 +194,14 @@ end
 
 -- // Kandidaten nacheinander testen (User muss im Match sein)
 -- // returns: true wenn einer funktioniert hat (und gespeichert wurde)
-local function tryCandidates(ft, base, cands)
+local function tryCandidates(ft, code, cands)
     local origHex = normHex(ft.pattern)
     local onHex = normHex(ft.on)
 
     if #cands == 1 then
         -- Nur ein Kandidat: direkt patchen, kein Test nötig
         if writePatch(cands[1], true, origHex, onHex) then
-            savedOffsets[ft.name] = cands[1] - base
+            savedOffsets[ft.name] = cands[1] - code.start
             saveFound()
             gg.toast('✅ Radar ESP gepatcht @0x' .. string.format('%X', cands[1]))
             return true
@@ -221,7 +229,7 @@ local function tryCandidates(ft, base, cands)
         }, nil, 'Kandidat ' .. i .. '/' .. #cands)
 
         if choice == 1 then
-            savedOffsets[ft.name] = addr - base
+            savedOffsets[ft.name] = addr - code.start
             saveFound()
             gg.toast('✅ Gespeichert! Radar ESP ist jetzt an.')
             return true
@@ -251,10 +259,10 @@ local function toggleRadar()
     local origHex = normHex(ft.pattern)
     local onHex = normHex(ft.on)
 
-    -- Gespeicherter Offset vorhanden und gültig -> direkt togglen
+    -- Gespeicherter Offset (relativ zur Code-Region) vorhanden und gültig -> direkt togglen
     local saved = savedOffsets[ft.name]
-    if saved and base and bytesMatch(base + saved, origHex, onHex) then
-        local addr = base + saved
+    if saved and code and bytesMatch(code.start + saved, origHex, onHex) then
+        local addr = code.start + saved
         local curHex = dwordToHexLE(readDword(addr))
         local enable = curHex == origHex
         if writePatch(addr, enable, origHex, onHex) then
@@ -294,7 +302,7 @@ local function toggleRadar()
         return
     end
 
-    tryCandidates(ft, base, cands)
+    tryCandidates(ft, code, cands)
 end
 
 -- // Hauptmenü
