@@ -119,6 +119,19 @@ local function findCandidates(ft, base, code)
     if saved and base and bytesMatch(base + saved, origHex, onHex) then
         return { base + saved }
     end
+    -- 1b) Diagnose wenn der gespeicherte/ bekannte Offset NICHT matcht:
+    --     zeige Basis + Bytes an der Stelle, damit man sieht was los ist
+    if saved and base then
+        local v = readDword(base + saved)
+        local vhex = v and dwordToHexLE(v) or 'unlesbar'
+        gg.alert('Bekannter Offset 0x' .. string.format('%X', saved) .. ' matcht nicht.\n\n' ..
+            'libil2cpp Basis: 0x' .. string.format('%X', base) .. '\n' ..
+            'Zieladresse:     0x' .. string.format('%X', base + saved) .. '\n' ..
+            'Bytes dort:      ' .. vhex .. '\n' ..
+            'Erwartet:        ' .. origHex .. ' (oder ' .. onHex .. ')\n\n' ..
+            '→ Basis falsch oder andere Spielversion.\n' ..
+            'Wenn Basis wie erwartet aussieht, hat dein Spiel eine andere Version als 1.80.0.f3358.', 'OK')
+    end
 
     -- 2) Pattern-Scan (Hex-String MIT Leerzeichen — GG braucht "1f 05 00 31",
     --    sonst findet die Suche 0 Treffer und meldet fälschlich "Muster existiert nicht")
