@@ -1,35 +1,28 @@
 -- //============================================================\\
 -- //  TERRAVIA-OPS RADAR · Critical Ops
--- //  Game Guardian Lua — Port von Critical-Ops-External (islavikfx)
--- //  Patchen von Code-Bytes in libil2cpp.so:
--- //   - Radar/ESP     (Espradar)
--- //   - Hitboxes      (größere Trefferboxen)
--- //   - Wallshot      (Schüsse durch Wände)
+-- //  Game Guardian Lua — ESP/Radar Patch für libil2cpp.so
+-- //  (nur Radar ESP; Hitboxes/Wallshot entfernt)
 -- //
--- //  VERSIONSTOLERANT:
--- //  Die Patchstellen werden primär per BYTE-MUSTER in der geladenen
--- //  libil2cpp.so gesucht (Pattern-Scan). So funktioniert das Script
--- //  auch nach Spiel-Updates, ohne dass Offsets manuell angepasst
--- //  werden müssen. Gefundene Adressen werden base-relativ gespeichert
--- //  und beim nächsten Start direkt verwendet (nur verifiziert).
+-- //  WICHTIG ZUM VERSTEHEN:
+-- //  Das Byte-Muster "1f 05 00 31" (cmn w8, #1) kommt oft mehrfach in der
+-- //  Binary vor. Deshalb sucht das Script KANDIDATEN und filtert sie:
+-- //  die Stelle muss von einer Sprung-Instruktion gefolgt sein.
+-- //  Bleiben mehrere Kandidaten, testet das Script sie nacheinander —
+-- //  du musst dabei IM MATCH sein und auf die Minimap schauen.
 -- //============================================================\\
-
--- // Features: Name, Such-Muster (Original-Bytes am Patchpunkt), ON-Bytes,
--- //           feste Datei-Offsets als Fallback (nur 1.70.1.f3300)
-local FEATURES = {
-    { name = 'Radar ESP', pattern = '1f 05 00 31', on = '28 00 80 52', fileoff = '0x1b1897c+0xac', libsplit = '0x13a400' },
-    { name = 'Hitboxes',  pattern = 'c7 2e 40 bd', on = '07 b0 26 1e', fileoff = '0x1b9b7fc+0x190', libsplit = '0x13a400' },
-    { name = 'Wallshot',  pattern = '80 02 00 36', on = '8e 02 00 54', fileoff = '0x1a93b30+0x190', libsplit = '0x13a400' },
-}
 
 local PACKAGE = 'com.criticalforceentertainment.criticalops'
 local FOUND_FILE = '/sdcard/Download/terravia_ops_radar_found.txt'
 
+-- // Nur Radar ESP: Name, Original-Muster, ON-Muster, Fallback-Offset (1.70.1)
+local FEATURES = {
+    { name = 'Radar ESP', pattern = '1f 05 00 31', on = '28 00 80 52', fileoff = '0x1b1897c+0xac', libsplit = '0x13a400' },
+}
+
 -- // Gespeicherte base-relative Offsets: name -> number
 local savedOffsets = {}
 
--- // libil2cpp Regionen + Basis ermitteln
--- // returns: base (niedrigste Adresse), codeRegion (Xa-Region) oder nil
+-- // libil2cpp Basis + Code-Region
 local function findLib()
     local ok, mods = pcall(gg.getRangesList)
     if not ok or type(mods) ~= 'table' then return nil end
@@ -44,16 +37,13 @@ local function findLib()
     return base, code
 end
 
--- // Bytes an einer Adresse lesen (flags 4 = dword)
 local function readDword(addr)
     local ok, res = pcall(gg.getValues, { { address = addr, flags = 4 } })
-    if ok and res and res[1] then
-        return res[1].value
-    end
+    if ok and res and res[1] then return res[1].value end
     return nil
 end
 
--- // DWord als Little-Endian-Hex-String "1f050031" (wie er im Speicher liegt)
+-- // DWord-Integer (wie GG ihn liefert) -> Hex-String in Speicherreihenfolge
 local function dwordToHexLE(v)
     local h = string.format('%08x', v)
     return h:sub(7, 8) .. h:sub(5, 6) .. h:sub(3, 4) .. h:sub(1, 2)
@@ -63,7 +53,6 @@ local function normHex(s)
     return (tostring(s or ''):gsub('%s+', ''):lower())
 end
 
--- // Hex-String ("0x...", "0x...+0x...") in Zahl
 local function parseHex(s)
     s = tostring(s or ''):gsub('%s+', '')
     if s:find('+') then
@@ -75,12 +64,24 @@ local function parseHex(s)
     return tonumber(s:gsub('^0[xX]', ''), 16)
 end
 
--- // Prüft, ob an addr die Original- oder ON-Bytes liegen
 local function bytesMatch(addr, origHex, onHex)
     local v = readDword(addr)
     if v == nil then return false end
     local h = dwordToHexLE(v)
     return h == origHex or h == onHex
+end
+
+-- // An addr auf enable setzen (true=ON, false=Original)
+local function writePatch(addr, enable, origHex, onHex)
+    local cur = readDword(addr)
+    if cur == nil then return false end
+    local curHex = dwordToHexLE(cur)
+    local want = enable and onHex or origHex
+    if curHex == want then return true end
+    -- GG schreibt little-endian: Hex-String umdrehen
+    local intValue = tonumber(want:sub(7, 8) .. want:sub(5, 6) .. want:sub(3, 4) .. want:sub(1, 2), 16)
+    local ok = pcall(gg.setValues, { { address = addr, flags = 4, value = intValue } })
+    return ok
 end
 
 -- // Gespeicherte Offsets laden
@@ -89,14 +90,11 @@ local function loadFound()
     if not f then return end
     for line in f:lines() do
         local name, off = line:match('^([^=]+)=0x([0-9a-fA-F]+)$')
-        if name and off then
-            savedOffsets[name] = tonumber(off, 16)
-        end
+        if name and off then savedOffsets[name] = tonumber(off, 16) end
     end
     f:close()
 end
 
--- // Gefundene Offsets speichern (alle Features)
 local function saveFound()
     local lines = {}
     for _, ft in ipairs(FEATURES) do
@@ -107,94 +105,160 @@ local function saveFound()
     if f then f:write(table.concat(lines, '\n')) f:close() end
 end
 
--- // Adresse eines Features ermitteln: gespeichert -> Pattern-Scan -> Fallback
--- // returns: addr oder nil
-local function findAddr(ft, base, code)
+-- // Kandidaten-Adressen für ein Feature finden (gefiltert)
+-- // returns: Tabelle mit Adressen (leer wenn nichts)
+local function findCandidates(ft, base, code)
     local origHex = normHex(ft.pattern)
     local onHex = normHex(ft.on)
+    local cands = {}
 
-    -- 1) Gespeicherter base-relativer Offset (falls noch gültig)
+    -- 1) Gespeicherter Offset (falls noch gültig)
     local saved = savedOffsets[ft.name]
     if saved and base and bytesMatch(base + saved, origHex, onHex) then
-        return base + saved
+        return { base + saved }
     end
 
-    -- 2) Pattern-Scan in der Code-Region der libil2cpp.so
-    --    Zuerst nach dem Original-Muster suchen; wenn das Feature schon
-    --    eingeschaltet ist, liegt das ON-Muster an der Stelle — dann danach suchen.
+    -- 2) Pattern-Scan mit Folge-Instruktion als Wildcard
     if code then
-        local ok = pcall(gg.setRanges, code.start)
-        if ok then
-            local patterns = { origHex, onHex }
-            for _, pat in ipairs(patterns) do
-                gg.searchNumber('h ' .. pat, 0x1)
-                local n = gg.getResultsCount()
-                if n and n > 0 then
-                    local res = gg.getResults(n)
-                    gg.clearResults()
-                    for _, r in ipairs(res) do
-                        if bytesMatch(r.address, origHex, onHex) then
-                            savedOffsets[ft.name] = r.address - base
-                            saveFound()
-                            return r.address
+        pcall(gg.setRanges, code.start)
+        gg.searchNumber('h ' .. origHex .. ' ?? ?? ?? ??', 0x1)
+        local n = gg.getResultsCount()
+        if n and n > 0 then
+            local res = gg.getResults(n)
+            gg.clearResults()
+            -- Filter: Stelle muss Original/ON sein UND gefolgt von Sprung-Instruktion
+            -- (b.cond=0x54, cbz/cbnz=0x35/0x37, tbz/tbnz=0x34/0x36)
+            for _, r in ipairs(res) do
+                if bytesMatch(r.address, origHex, onHex) then
+                    local nextDword = readDword(r.address + 4)
+                    if nextDword then
+                        -- ARM64-Instruktionen little-endian: Opcode-Feld (0x54 etc.)
+                        -- liegt im höchsten Byte des DWord.
+                        local opByte = math.floor(nextDword / 0x1000000) % 0x100
+                        if opByte == 0x54 or opByte == 0x34 or opByte == 0x35 or opByte == 0x36 or opByte == 0x37 then
+                            table.insert(cands, r.address)
                         end
+                    end
+                end
+            end
+            -- Fallback: falls Filter nichts findet, alle verifizierten Treffer
+            if #cands == 0 then
+                for _, r in ipairs(res) do
+                    if bytesMatch(r.address, origHex, onHex) then
+                        table.insert(cands, r.address)
                     end
                 end
             end
         end
     end
 
-    -- 3) Feste Datei-Offsets (nur für die Version aus dem Repo)
-    if base and ft.fileoff and ft.libsplit then
+    -- 3) Fester Offset (nur 1.70.1)
+    if #cands == 0 and base and ft.fileoff and ft.libsplit then
         local off = parseHex(ft.fileoff)
         local split = parseHex(ft.libsplit)
         if off and split then
             local addr = base + off - split
             if bytesMatch(addr, origHex, onHex) then
-                savedOffsets[ft.name] = addr - base
-                saveFound()
-                return addr
+                table.insert(cands, addr)
             end
         end
     end
 
-    return nil
+    return cands
 end
 
--- // Feature togglen
--- // returns: status, msg
-local function toggleFeature(ft)
-    local base, code = findLib()
-    if not base then
-        return 'error', 'libil2cpp.so nicht gefunden.\nIst Critical Ops gestartet und in GG ausgewählt?'
-    end
-
-    local addr = findAddr(ft, base, code)
-    if not addr then
-        return 'error', ft.name .. ': Patchstelle nicht gefunden.\n\nDas Byte-Muster "' .. ft.pattern ..
-            '" existiert in dieser Spielversion nicht (Funktion umgebaut).\n' ..
-            '→ Spiel-Update abwarten oder neue Offsets von der Community holen.'
-    end
-
+-- // Kandidaten nacheinander testen (User muss im Match sein)
+-- // returns: true wenn einer funktioniert hat (und gespeichert wurde)
+local function tryCandidates(ft, base, cands)
     local origHex = normHex(ft.pattern)
     local onHex = normHex(ft.on)
-    local cur = readDword(addr)
-    if cur == nil then
-        return 'error', ft.name .. ': Adresse nicht lesbar 0x' .. string.format('%X', addr)
+
+    if #cands == 1 then
+        -- Nur ein Kandidat: direkt patchen, kein Test nötig
+        if writePatch(cands[1], true, origHex, onHex) then
+            savedOffsets[ft.name] = cands[1] - base
+            saveFound()
+            gg.toast('✅ Radar ESP gepatcht @0x' .. string.format('%X', cands[1]))
+            return true
+        end
+        return false
     end
 
-    local curHex = dwordToHexLE(cur)
-    local enable = curHex == origHex  -- Original -> einschalten, sonst ausschalten
-    local want = enable and onHex or origHex
-    -- GG schreibt Integer little-endian ins RAM. Damit die gewünschten Bytes
-    -- (z. B. "28 00 80 52") im Speicher liegen, den Hex-String umdrehen:
-    -- 28008052 -> 52800028.
-    local intValue = tonumber(want:sub(7, 8) .. want:sub(5, 6) .. want:sub(3, 4) .. want:sub(1, 2), 16)
-    local ok = pcall(gg.setValues, { { address = addr, flags = 4, value = intValue } })
-    if not ok then
-        return 'error', ft.name .. ': Schreiben fehlgeschlagen.'
+    gg.alert('Es wurden ' .. #cands .. ' Kandidaten gefunden.\n\n' ..
+        'Das Script testet sie jetzt nacheinander.\n' ..
+        'WICHTIG: Sei IM MATCH und schau nach jedem Test auf die Minimap!\n\n' ..
+        'Los?', 'OK')
+
+    for i, addr in ipairs(cands) do
+        if not writePatch(addr, true, origHex, onHex) then
+            gg.toast('Kandidat ' .. i .. ' nicht beschreibbar, überspringe')
+        else
+            gg.toast('Kandidat ' .. i .. '/' .. #cands .. ' AN @0x' .. string.format('%X', addr))
+            gg.sleep(7000)  -- Zeit zum Schauen auf die Minimap
+        end
+
+        local choice = gg.choice({
+            '✅ Radar AN',
+            '❌ Nicht AN',
+            'Abbrechen',
+        }, nil, 'Kandidat ' .. i .. '/' .. #cands)
+
+        if choice == 1 then
+            savedOffsets[ft.name] = addr - base
+            saveFound()
+            gg.toast('✅ Gespeichert! Radar ESP ist jetzt an.')
+            return true
+        elseif choice == 3 then
+            writePatch(addr, false, origHex, onHex)
+            return false
+        else
+            writePatch(addr, false, origHex, onHex)  -- zurück auf Original
+        end
     end
-    return 'ok', ft.name .. (enable and ' AN' or ' AUS') .. '  (' .. string.format('%X', addr) .. ')'
+
+    gg.alert('Kein Kandidat hat funktioniert.\n' ..
+        'Das Byte-Muster existiert in dieser Spielversion nicht (Funktion umgebaut).\n' ..
+        '→ Spiel-Update abwarten oder neues Muster eintragen.', 'OK')
+    return false
+end
+
+-- // Radar ESP togglen (an/aus), bei unbekannter Stelle: Kandidaten testen
+local function toggleRadar()
+    local base, code = findLib()
+    if not base then
+        gg.alert('libil2cpp.so nicht gefunden.\nIst Critical Ops gestartet und in GG ausgewählt?', 'OK')
+        return
+    end
+
+    local ft = FEATURES[1]
+    local origHex = normHex(ft.pattern)
+    local onHex = normHex(ft.on)
+
+    -- Gespeicherter Offset vorhanden und gültig -> direkt togglen
+    local saved = savedOffsets[ft.name]
+    if saved and base and bytesMatch(base + saved, origHex, onHex) then
+        local addr = base + saved
+        local curHex = dwordToHexLE(readDword(addr))
+        local enable = curHex == origHex
+        if writePatch(addr, enable, origHex, onHex) then
+            gg.toast('✅ Radar ESP ' .. (enable and 'AN' or 'AUS'))
+        else
+            gg.alert('Radar ESP: Schreiben fehlgeschlagen.', 'OK')
+        end
+        return
+    end
+
+    -- Keine gespeicherte Stelle -> Kandidaten suchen und testen
+    gg.toast('Suche Radar-ESP Stelle...')
+    local cands = findCandidates(ft, base, code)
+    if #cands == 0 then
+        gg.alert('Radar-ESP Stelle nicht gefunden.\n' ..
+            'Das Byte-Muster "' .. ft.pattern .. '" existiert in dieser Spielversion nicht.\n' ..
+            '→ Spiel-Update abwarten oder neues Muster eintragen.', 'OK')
+        return
+    end
+
+    tryCandidates(ft, base, cands)
 end
 
 -- // Hauptmenü
@@ -206,23 +270,21 @@ local function main()
     while true do
         local choice = gg.choice({
             '📡 Radar ESP',
-            '🎯 Hitboxes',
-            '🧱 Wallshot',
+            '🔄 Scan erzwingen',
             'EXIT',
-        }, nil, 'TERRAVIA OPS RADAR\nPattern-Scan aktiv (versionsunabhängig)')
+        }, nil, 'TERRAVIA OPS RADAR\n(nur ESP)')
 
-        if choice == nil or choice == 4 then
+        if choice == nil or choice == 3 then
             gg.setVisible(true)
             return
         end
 
-        local ft = FEATURES[choice]
-        local status, msg = toggleFeature(ft)
-        if status == 'ok' then
-            gg.toast('✅ ' .. msg)
-        else
-            gg.alert('❌ ' .. msg, 'OK')
+        if choice == 2 then
+            savedOffsets['Radar ESP'] = nil  -- gespeicherten Offset verwerfen
+            gg.toast('Neuer Scan...')
         end
+
+        toggleRadar()
     end
 end
 
